@@ -17,17 +17,17 @@ console.log("directory path", directoryPath)
 
 dotenv.config({path: '../.env'});
 const app = express();
-const {Client} = pkg;
+const {Pool} = pkg;
 
 //
 app.use(express.json());
 app.use(express.urlencoded({
   extended: true,
 }));
-const results = [];
+
 
 // passsing directoryPath and callback function
-fs.readdir(directoryPath, function (err, files) {
+/* fs.readdir(directoryPath, function (err, files) {
   //handling error
   if (err) {
       return console.log('Unable to scan directory: ' + err);
@@ -50,12 +50,12 @@ fs.readdir(directoryPath, function (err, files) {
         console.log("file reading completed");
       })
   });
-});
-console.log(results.length)
+}); */
+
 
 const connectDb = async() => {
   try {
-    const client = new Client({
+    const pool = new Pool({
             user: process.env.PGUSER,
             host: process.env.PGHOST,
             database: process.env.PGDATABASE,
@@ -63,7 +63,7 @@ const connectDb = async() => {
             port: process.env.PGPORT
     })
     // waiting to connect 
-    await client.connect((err) => {
+    await pool.connect((err) => {
       if(err) {
         console.log("Error connection", err)
         return;
@@ -74,29 +74,39 @@ const connectDb = async() => {
 
 
   // try to insert data if there is data
-    try {
-      client.query('DROP TABLE  IF EXISTS people')
-      client.query(`CREATE TABLE IF NOT EXISTS people (
-      id BIGSERIAL,
-      fullname TEXT,
-      gender TEXT,
-      phone TEXT,
-      age INTEGER,
-      created_at TIMESTAMP DEFAULT NOW()
-  )`)
-      const queryText = 'INSERT INTO people(id, fullname, gender, phone, age) VALUES ($1, $2, $3, $4, $5) RETURNING *'
-      const values = [1, "rajeev", "male", "0987654321", 40, ];
-      const res = await client.query(queryText, values);
-      console.log(res.rows);
+      const createTableQuery = `CREATE TABLE IF NOT EXISTS journey(
+        departure TIMESTAMP,
+        return TIMESTAMP,
+        departure_station_id TEXT,
+        departure_station_name TEXT,
+        return_station_id TEXT,
+        return_station_name TEXT,
+        covered_distance_m TEXT,
+        duration_sec TEXT
 
-      await client.query('COMMIT')
-    } catch (e) {
-      await client.query('ROLLBACK')
-      throw e;
-    } 
+      )`; 
+
+      // Execute the query
+      pool.query(createTableQuery)
+      .then(() => 
+        console.log("table created"),
+      )
+      .catch(error => {
+        console.error('Error creating table:', error);
+      })
+
+      const queryText = 'INSERT INTO journey(departure, return, departure_station_id, departure_station_name, return_station_id, return_station_name, covered_distance_m, duration_sec) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *'
+      const values = ['2021-05-31T23:57:26', '2021-06-01T00:05:47', '094', 'Laajalahden aukio', '100', 'Teljäntie', '2043', '500'];
+      pool.query(queryText, values)
+      .then(()=> 
+      console.log("done value insertion")
+      )
+      .catch (error =>{ 
+        console.error('Error inserting values:', error)
+      })
+      
+
     
-   
-
   } catch (error) {
     console.log(error)
   }
